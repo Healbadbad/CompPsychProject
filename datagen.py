@@ -10,8 +10,8 @@ while True:
 	word = word[:-1]
 	if en.is_verb(word):
 		if en.verb.infinitive(word) != '':
-			chosenWords[en.verb.infinitive(word)] = en.verb.past_participle(en.verb.infinitive(word))
+			chosenWords[en.verb.infinitive(word)] = en.verb.past(en.verb.infinitive(word))
 
-data = open("chosenWords.txt", 'w')
+data = open("chosenWords2.txt", 'w')
 for word in chosenWords:
 	data.write(word + ',' + chosenWords[word] + '\n')
