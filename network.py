@@ -6,11 +6,11 @@ import lasagne
 import warnings
 warnings.filterwarnings('ignore', module='lasagne')
 
-epochs = 20
+epochs = 50
 
 in_layer = lasagne.layers.InputLayer(shape=(None, 19, 27)) # Arbitrary number of examples, 19 letters, 27 possibilities
-H1_layer = lasagne.layers.DenseLayer(in_layer, 200, nonlinearity = lasagne.nonlinearities.sigmoid)
-H2_layer = lasagne.layers.DenseLayer(H1_layer, 200, nonlinearity = lasagne.nonlinearities.sigmoid)
+H1_layer = lasagne.layers.DenseLayer(in_layer, 200, nonlinearity = lasagne.nonlinearities.rectify)
+H2_layer = lasagne.layers.DenseLayer(H1_layer, 200, nonlinearity = lasagne.nonlinearities.rectify)
 net = lasagne.layers.DenseLayer(H2_layer, 513, nonlinearity = lasagne.nonlinearities.sigmoid)
 
 # Generate some data
@@ -18,7 +18,7 @@ net_output = lasagne.layers.get_output(net)
 # As a loss function, we'll use Theano's squared error function.
 # This should work fairly well for regression
 true_output = T.ivector('true_output')
-loss = T.mean(lasagne.objectives.squared_error(net_output, true_output))
+loss = T.mean(lasagne.objectives.categorical_crossentropy(net_output, true_output))
 
 # Retrieving all parameters of the network is done using get_all_params,
 # which recursively collects the parameters of all layers connected to the provided layer.
@@ -30,7 +30,7 @@ updates = lasagne.updates.sgd(loss, all_params, learning_rate=0.2)
 # Finally, we can compile Theano functions for training and computing the output.
 # Note that because loss depends on the input variable of our input layer,
 # we need to retrieve it and tell Theano to use it.
-train = theano.function([in_layer.input_var, true_output], loss, updates=updates)
+train = theano.function([in_layer.input_var, true_output], loss, updates=updates, allow_input_downcast=True)
 get_output = theano.function([in_layer.input_var], net_output)
 
 def wordToVec(word):
@@ -72,6 +72,19 @@ def thresh(vec):
             vec2.append(0)
     return vec2
 
+def iterate_minibatches(inputs, targets, batchsize, shuffle=False):
+    assert len(inputs) == len(targets)
+    if shuffle:
+        indices = np.arange(len(inputs))
+        np.random.shuffle(indices)
+    for start_idx in range(0, len(inputs) - batchsize + 1, batchsize):
+        if shuffle:
+            excerpt = indices[start_idx:start_idx + batchsize]
+        else:
+            excerpt = slice(start_idx, start_idx + batchsize)
+
+        yield inputs[excerpt], targets[excerpt]
+
 datafile = open('chosenWords.txt')
 X = []
 Y = []
@@ -84,20 +97,30 @@ while True:
 	if future == '':	# There were some problems with the library
 		continue
 	future = future[:-1] # Remove the newline
-	X.append(wordToVec(base))
-	Y.append(sum(wordToVec(future),[]))
+	X.append(np.array(wordToVec(base), theano.config.floatX))
+	Y.append(np.array(sum(wordToVec(future),[]), theano.config.floatX))
 
-train([wordToVec('yell')],sum(wordToVec('yelled'),[]))
+# train([wordToVec('yell')],sum(wordToVec('yelled'),[]))
 
 for epic in range(epochs):
 	print epic
 	for index in range(len(X)):
 		train([X[index]],Y[index])
 
+# X = np.array(X, theano.config.floatX)
+# Y = np.array(Y, theano.config.floatX)
+
+# for epic in range(epochs):
+# 	print epic
+# 	for batch in iterate_minibatches(X, Y, len(X), shuffle=True):
+# 	        inputs, targets = batch
+# 	        # print len(inputs), len(targets)
+# 	        train(inputs, targets)
+
 # for index in range(len(X)):
 # 	(get_output([wordToVec(X[index])],sum(wordToVec(Y[index]),[]))
 print vecToWord(thresh(get_output([wordToVec('yell')])[0]))
-
+print get_output([wordToVec('yell')])
 
 # # Train the network
 # for k in range(5): #number of epochs
